@@ -3,7 +3,6 @@ import random
 from tkinter import *
 
 
-
 class Game:
     """
     Handles game logic and objects.
@@ -16,7 +15,7 @@ class Game:
         self.matrix = np.zeros((4, 4), dtype=int)
         self.newTile(first=True)
 
-    def getboard(self):
+    def get_board(self):
         """
         :return: current board as a flat vector
         """
@@ -24,7 +23,7 @@ class Game:
 
     def newTile(self, first=False):
         """
-        stick a new tile on the board. 90/10 odds of 2 vs 4 (2^1 or 2^2)
+        stick a new tile on the board. 9:1 odds of 2 vs 4 (2^1 or 2^2)
         :param first: true if placing the first tile of the game (i.e. a new game). First tile is always a 2 (2^1)
         :return: none
         """
@@ -41,6 +40,26 @@ class Game:
                     tile[...] = val
                     self.zerocount -= 1  # update zero count
                     return
+    def isGameOver(self):
+        if self.zerocount > 0: # empty spaces -> swipes possible
+            return False
+
+        pairs = [
+            ((0, 0), (1, 0)), ((1, 0), (2, 0)), ((2, 0), (3, 0)), # updown pairs, col 0
+            ((0, 1), (1, 1)), ((1, 1), (2, 1)), ((2, 1), (3, 1)), # updown pairs, col 1
+            ((0, 2), (1, 2)), ((1, 2), (2, 2)), ((2, 2), (3, 2)), # updown pairs, col 2
+            ((0, 3), (1, 3)), ((1, 3), (2, 3)), ((2, 3), (3, 3)), # updown pairs, col 3
+            ((0, 0), (0, 1)), ((1, 0), (1, 1)), ((2, 0), (2, 1)), ((3, 0), (3, 1)), # leftright pairs, col 0/1
+            ((0, 1), (0, 2)), ((1, 1), (1, 2)), ((2, 1), (2, 2)), ((3, 1), (3, 2)), # leftright pairs, col 1/2
+            ((0, 2), (0, 3)), ((1, 2), (1, 3)), ((2, 2), (2, 3)), ((3, 2), (3, 3))  # leftright pairs, col 2/3
+        ]
+
+        for p in pairs: # no empty spaces, but board has an adjacent pair -> swipes possible
+            if self.matrix[p[0][0]][p[0][1]] == self.matrix[p[1][0]][p[1][1]]:
+                return False
+
+        # only reached when board has no empty spaces AND all adjacent cells have different numbers
+        return True
 
     def move(self, direction):
         """
@@ -54,7 +73,7 @@ class Game:
             """
             Take the input row and push all the tiles to the left. returns new row object. does NOT modify.
 
-            Function creates a temporary array (which we eventually return) and aims to fill the temp array from the left.
+            Function creates an array (which we eventually return) and aims to fill the temp array from the left.
             We make use of the fact that the finalized output will be "full" from the left side. This perspective allows us
             to easily avoid accidentally merging the same tile twice (eg. [4,2,2,0] could mistakenly become [8,0,0,0])
 
@@ -95,20 +114,16 @@ class Game:
             self.matrix = lswipe(self.matrix)
 
         elif direction == "RIGHT" or direction == 1:
-
             self.matrix = np.fliplr(self.matrix)
             self.matrix = lswipe(self.matrix)
             self.matrix = np.fliplr(self.matrix)
 
         elif direction == "UP" or direction == 2:
-
-            # rot CCW 90, swipe left, unrot
             self.matrix = np.rot90(self.matrix, axes=(0, 1))
             self.matrix = lswipe(self.matrix)
             self.matrix = np.rot90(self.matrix, axes=(1, 0))
 
         elif direction == "DOWN" or direction == 3:
-
             self.matrix = np.rot90(self.matrix, axes=(1, 0))
             self.matrix = lswipe(self.matrix)
             self.matrix = np.rot90(self.matrix, axes=(0, 1))
@@ -127,7 +142,7 @@ class Game:
             return False
 
 
-class GameHandler:
+class GameWindow:
     fcolours = {
         0: "#aaa69d",
         1: "#2f3542",
@@ -176,58 +191,49 @@ class GameHandler:
 
         self.scoreText = IntVar()
         self.scoreText.set(0)
-        self.root.bind("<Key>", self.keypress)
 
-        self.game = Game()
-        self.paint()
-
-        self.root.update()
-
-
-    def getscore(self):
-        return self.game.score
-
-    def paint(self):
+    def paint(self, game):
         for child in self.gridFrame.winfo_children():
             child.grid_forget()
             child.destroy()
 
-        self.scoreText.set(self.game.score)
-        Label(self.gridFrame, textvariable=self.scoreText).grid(column=3, row =0)
+        self.scoreText.set(game.score)
+        Label(self.gridFrame, textvariable=self.scoreText).grid(column=3, row=0)
 
         for i in range(4):
             for j in range(4):
-                Label(self.gridFrame, text=1<<self.game.matrix[i][j], font=("", 30), fg=self.fcolours[self.game.matrix[i][j]], bg=self.bcolours[self.game.matrix[i][j]], width=6, height=3).grid(row=i + 1, column=j, padx=2, pady=2)
+                Label(
+                    self.gridFrame,
+                    text=1<<game.matrix[i][j],
+                    font=("", 30),
+                    fg=self.fcolours[game.matrix[i][j]],
+                    bg=self.bcolours[game.matrix[i][j]], width=6, height=3
+                ).grid(row=i + 1, column=j, padx=2, pady=2)
         self.root.update()
 
-    def newgame(self):
-        self.game = Game()
-        self.paint()
 
-    def keypress(self, event):
+if __name__ == "__main__":
+    # play game with keyboard input.
+    def keypress(event):
         # key is variable to allow for AI control
         key = event.keysym
         print(key)
         if key == "Right" or key == "d":
-            self.move("RIGHT")
+            kb_game.move("RIGHT")
         elif key == "Left" or key == "a":
-            self.move("LEFT")
+            kb_game.move("LEFT")
         elif key == "Down" or key == "s":
-            self.move("DOWN")
+            kb_game.move("DOWN")
         elif key == "Up" or key == "w":
-            self.move("UP")
+            kb_game.move("UP")
 
-    def move(self, direction):
-        # perform a move, update the board
+        if kb_game.isGameOver() or key == "Escape":
+            print(f"Game Over! Final Score: {kb_game.score}")
+            exit()
+        UI.paint(kb_game)
 
-        isLegalMove = self.game.move(direction)
-        if isLegalMove:
-            self.paint()
-        return isLegalMove
-
-    def getboard(self):
-        return self.game.getboard()
-
-if __name__== "__main__":
-    game = GameHandler()
-    game.root.mainloop()
+    UI = GameWindow()
+    kb_game = Game()
+    UI.root.bind("<Key>", keypress)
+    UI.paint(kb_game)
+    UI.root.mainloop()
